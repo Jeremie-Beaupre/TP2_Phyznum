@@ -1,0 +1,130 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+# TP reconstruction TDM (CT)
+# Prof: Philippe Després
+# programme: Dmitri Matenine (dmitri.matenine.1@ulaval.ca)
+
+
+# libs
+import numpy as np
+import time
+
+# local files
+import geometry as geo
+import util as util
+import CTfiltre as CTfilter
+
+## créer l'ensemble de données d'entrée à partir des fichiers
+def readInput():
+    # lire les angles
+    [nbprj, angles] = util.readAngles(geo.anglesFile)
+
+    print("nbprj:",nbprj)
+    print("angles min and max (rad):")
+    print("["+str(np.min(angles))+", "+str(np.max(angles))+"]")
+
+    # lire le sinogramme
+    [nbprj2, nbpix2, sinogram] = util.readSinogram(geo.sinogramFile)
+
+    if nbprj != nbprj2:
+        print("angles file and sinogram file conflict, aborting!")
+        exit(0)
+
+    if geo.nbpix != nbpix2:
+        print("geo description and sinogram file conflict, aborting!")
+        exit(0)
+
+    return [nbprj, angles, sinogram]
+
+
+## reconstruire une image TDM en mode retroprojection
+def laminogram():
+    
+    [nbprj, angles, sinogram] = readInput()
+
+    # initialiser une image reconstruite
+    image = np.zeros((geo.nbvox, geo.nbvox))
+
+    # "etaler" les projections sur l'image
+    # ceci sera fait de façon "voxel-driven"
+    # pour chaque voxel, trouver la contribution du signal reçu
+    # voxel‑driven laminogram
+    # paramètres du détecteur
+    L = geo.nbpix * geo.voxsize          # largeur physique du détecteur
+    tmin = -L/2                           # début du détecteur
+    dt = L / geo.nbpix                    # taille d’un pixel détecteur
+
+    for j in range(geo.nbvox):            # boucle colonnes
+        print(f"working on image column: {j+1}/{geo.nbvox}")
+        x =  (j - geo.nbvox/2 + 0.5) * geo.voxsize   # coordonnée x du voxel
+
+        for i in range(geo.nbvox):        # boucle lignes
+            y = (i - geo.nbvox/2 + 0.5) * geo.voxsize   # coordonnée y du voxel
+            total = 0.0                   # accumulation des contributions
+
+            for a, th in enumerate(angles):           # boucle angles
+                s = x*np.cos(th) + y*np.sin(th)       # projection du voxel sur le détecteur
+                k = int(round((s - tmin) / dt))       # conversion en index détecteur
+
+                if 0 <= k < geo.nbpix:                # si dans les bornes
+                    total += sinogram[a, k]           # ajouter la valeur du sinogramme
+
+            image[i, j] = total           # assigner la valeur finale du voxel
+            
+
+    image = np.fliplr(image) # mettre l'image à l'endroit
+    util.saveImage(image, "laminogram_fantome_192_04_image_droite")
+
+
+## reconstruire une image TDM en mode retroprojection filtrée
+def backproject():
+    
+    [nbprj, angles, sinogram] = readInput()
+    
+    # initialiser une image reconstruite
+    image = np.zeros((geo.nbvox, geo.nbvox))
+    
+    ### option filtrer ###
+    CTfilter.filterSinogram(sinogram)
+    ######
+    
+    # "etaler" les projections sur l'image
+    # ceci sera fait de façon "voxel-driven"
+    # pour chaque voxel, trouver la contribution du signal reçu
+    for j in range(geo.nbvox): # colonnes de l'image
+        print("working on image column: "+str(j+1)+"/"+str(geo.nbvox))
+        for i in range(geo.nbvox): # lignes de l'image
+            for a in range(len(angles)):
+                #votre code ici
+                pass
+    
+    util.saveImage(image, "fbp")
+
+
+## reconstruire une image TDM en mode retroprojection
+def reconFourierSlice():
+    
+    [nbprj, angles, sinogram] = readInput()
+
+    # initialiser une image reconstruite, complexe
+    # pour qu'elle puisse contenir sa version FFT d'abord
+    IMAGE = np.zeros((geo.nbvox, geo.nbvox), 'complex')
+    
+    # conteneur pour la FFT du sinogramme
+    SINOGRAM = np.zeros(sinogram.shape, 'complex')
+
+    #image reconstruite
+    image = np.zeros((geo.nbvox, geo.nbvox))
+    #votre code ici
+
+    
+    util.saveImage(image, "fft")
+
+
+## main ##
+start_time = time.time()
+laminogram()
+#backproject()
+#reconFourierSlice()
+print("--- %s seconds ---" % (time.time() - start_time))
+
