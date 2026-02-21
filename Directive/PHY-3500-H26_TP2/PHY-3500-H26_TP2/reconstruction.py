@@ -73,32 +73,48 @@ def laminogram():
             
 
     image = np.fliplr(image) # mettre l'image à l'endroit
-    util.saveImage(image, "laminogram_fantome_192_04_image_droite")
+    CTfilter.filterSinogram(image)
+    util.saveImage(image, "laminogram_fantome_192_04_image_droite_test_question3")
 
 
 ## reconstruire une image TDM en mode retroprojection filtrée
 def backproject():
-    
+
     [nbprj, angles, sinogram] = readInput()
-    
+
+    # filtrer le sinogramme (question 3)
+    CTfilter.filterSinogram(sinogram)
+
     # initialiser une image reconstruite
     image = np.zeros((geo.nbvox, geo.nbvox))
-    
-    ### option filtrer ###
-    CTfilter.filterSinogram(sinogram)
-    ######
-    
-    # "etaler" les projections sur l'image
-    # ceci sera fait de façon "voxel-driven"
-    # pour chaque voxel, trouver la contribution du signal reçu
-    for j in range(geo.nbvox): # colonnes de l'image
-        print("working on image column: "+str(j+1)+"/"+str(geo.nbvox))
-        for i in range(geo.nbvox): # lignes de l'image
-            for a in range(len(angles)):
-                #votre code ici
-                pass
-    
-    util.saveImage(image, "fbp")
+
+    # paramètres du détecteur
+    L = geo.nbpix * geo.voxsize      # largeur physique du détecteur
+    tmin = -L/2                       # début du détecteur
+    dt = L / geo.nbpix                # taille d’un pixel détecteur
+
+    # rétroprojection filtrée voxel-driven
+    for j in range(geo.nbvox):        # colonnes
+        print(f"working on image column: {j+1}/{geo.nbvox}")
+        x = (j - geo.nbvox/2 + 0.5) * geo.voxsize   # coordonnée x du voxel
+
+        for i in range(geo.nbvox):    # lignes
+            y = (i - geo.nbvox/2 + 0.5) * geo.voxsize   # coordonnée y du voxel
+            total = 0.0
+
+            for a, th in enumerate(angles):         # angles
+                s = x*np.cos(th) + y*np.sin(th)     # projection du voxel
+                k = int(round((s - tmin) / dt))     # index détecteur
+
+                if 0 <= k < geo.nbpix:
+                    total += sinogram[a, k]         # sinogramme filtré
+
+            image[i, j] = total
+
+    # remettre l'image à l'endroit
+    image = np.fliplr(image)
+
+    util.saveImage(image, "fbp_test1")
 
 
 ## reconstruire une image TDM en mode retroprojection
@@ -120,10 +136,21 @@ def reconFourierSlice():
     
     util.saveImage(image, "fft")
 
+# def showFilteredSinogram():
+
+#     [nbprj, angles, sinogram] = readInput()
+
+#     # filtrer le sinogramme (question 3)
+#     CTfilter.filterSinogram(sinogram)
+
+#     # sauvegarder l’image du sinogramme filtré
+#     util.saveImage(sinogram, "sinogram_filtre_q3")
+
 
 ## main ##
 start_time = time.time()
 laminogram()
+#showFilteredSinogram()
 #backproject()
 #reconFourierSlice()
 print("--- %s seconds ---" % (time.time() - start_time))

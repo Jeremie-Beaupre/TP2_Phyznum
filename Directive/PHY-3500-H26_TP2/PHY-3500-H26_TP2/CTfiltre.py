@@ -17,5 +17,20 @@ def filterSinogram(sinogram):
 ## filter une ligne (projection) via FFT
 def filterLine(projection):
 
-    # votre code ici
-    return 
+    # FFT de la projection
+    P = np.fft.fft(projection)
+
+    # fréquences associées à chaque coefficient FFT
+    freqs = np.fft.fftfreq(len(projection))
+
+    # filtre passe-haut demandé : |u|
+    H = np.abs(freqs)
+
+    # appliquer le filtre dans le domaine fréquentiel
+    Pf = P * H
+
+    # retour dans le domaine spatial (partie réelle)
+    filtered = np.fft.ifft(Pf).real
+
+    return filtered
+
