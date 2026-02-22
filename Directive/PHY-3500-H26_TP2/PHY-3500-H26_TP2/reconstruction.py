@@ -95,31 +95,35 @@ def backproject():
     dt = L / geo.nbpix                # taille d’un pixel détecteur
 
     # rétroprojection filtrée voxel-driven
-    for j in range(geo.nbvox):        # colonnes
-        print(f"working on image column: {j+1}/{geo.nbvox}")
-        x = (j - geo.nbvox/2 + 0.5) * geo.voxsize   # coordonnée x du voxel
 
-        for i in range(geo.nbvox):    # lignes
-            y = (i - geo.nbvox/2 + 0.5) * geo.voxsize   # coordonnée y du voxel
-            total = 0.0
+    # --- grille des voxels ---
+    coords = (np.arange(geo.nbvox) - geo.nbvox/2 + 0.5) * geo.voxsize
+    X, Y = np.meshgrid(coords, coords)
 
-            for a, th in enumerate(angles):         # angles
-                s = x*np.cos(th) + y*np.sin(th)     # projection du voxel
-                
-                # k = int(round((s - tmin) / dt))     # index détecteur
+    image = np.zeros((geo.nbvox, geo.nbvox))
 
-                k1 = int(mt.floor((s - tmin) / dt))
-                k2 = int(mt.ceil((s - tmin) / dt))     
-                if(abs(k1-((s - tmin) / dt)))<=(abs(k2-((s - tmin) / dt))):
-                    k = k1
-                else:
-                    k = k2
+    for a, th in enumerate(angles):
 
+        cos_th = np.cos(th)
+        sin_th = np.sin(th)
 
-                if 0 <= k < geo.nbpix:
-                    total += sinogram[a, k]         # sinogramme filtré
+        # projection de tous les voxels
+        S = X * cos_th + Y * sin_th
 
-            image[i, j] = total
+        Kfloat = (S - tmin) / dt
+
+        K1 = np.floor(Kfloat).astype(int)
+        K2 = np.ceil(Kfloat).astype(int)
+
+        # choix du plus proche (équivalent à ton if abs(...))
+        choose_k1 = np.abs(K1 - Kfloat) <= np.abs(K2 - Kfloat)
+        K = np.where(choose_k1, K1, K2)
+
+        # masque validité détecteur
+        valid = (K >= 0) & (K < geo.nbpix)
+
+        # accumulation
+        image[valid] += sinogram[a, K[valid]]
 
     # remettre l'image à l'endroit
     image = np.fliplr(image)
@@ -143,30 +147,42 @@ def backproject2():
     dt = L / geo.nbpix                # taille d’un pixel détecteur
 
     # rétroprojection filtrée voxel-driven
-    for j in range(geo.nbvox):        # colonnes
-        print(f"working on image column: {j+1}/{geo.nbvox}")
-        x = (j - geo.nbvox/2 + 0.5) * geo.voxsize   # coordonnée x du voxel
 
-        for i in range(geo.nbvox):    # lignes
-            y = (i - geo.nbvox/2 + 0.5) * geo.voxsize   # coordonnée y du voxel
-            total = 0.0
 
-            for a, th in enumerate(angles):         # angles
-                s = x*np.cos(th) + y*np.sin(th)     # projection du voxel
-                k = (s - tmin) / dt
-                k1 = int(mt.floor((s - tmin) / dt))     # index détecteur
-                k2 = int(mt.ceil((s - tmin) / dt))
+# Création de la grille des voxels avec meshgrid
+    coords = (np.arange(geo.nbvox) - geo.nbvox/2 + 0.5) * geo.voxsize
+    X, Y = np.meshgrid(coords, coords)   # X -> colonnes, Y -> lignes
 
-                if (0 <= k1 < geo.nbpix) and (k2 != k1):
-                    total += sinogram[a, k1] + (k-k1)/(k2-k1)*(sinogram[a, k2]-sinogram[a, k1])         # sinogramme filtré
-                else:
-                    total += sinogram[a, k1]
+    image = np.zeros((geo.nbvox, geo.nbvox))
 
-            image[i, j] = total
+    # rétroprojection filtrée voxel-driven (vectorisée sur les voxels)
+    for a, th in enumerate(angles):
 
-    # remettre l'image à l'endroit
+        # projection de tous les voxels en même temps
+        S = X * np.cos(th) + Y * np.sin(th)
+
+        K = (S - tmin) / dt
+        K1 = np.floor(K).astype(int)
+        K2 = np.ceil(K).astype(int)
+
+        # masque des indices valides
+        valid = (K1 >= 0) & (K1 < geo.nbpix) & (K2 != K1)
+
+        contrib = np.zeros_like(S)
+
+        # interpolation linéaire
+        contrib[valid] = (
+            sinogram[a, K1[valid]] +
+            (K[valid] - K1[valid]) / (K2[valid] - K1[valid]) *
+            (sinogram[a, K2[valid]] - sinogram[a, K1[valid]])
+        )
+
+        # cas sans interpolation (ou bord)
+        valid_simple = (K1 >= 0) & (K1 < geo.nbpix) & (~valid)
+        contrib[valid_simple] = sinogram[a, K1[valid_simple]]
+
+        image += contrib
     image = np.fliplr(image)
-
     util.saveImage(image, "fbp_test1")
 
 
@@ -206,8 +222,8 @@ def reconFourierSlice():
 start_time = time.time()
 #laminogram()
 #showFilteredSinogram()
-#backproject()
 backproject()
+#backproject2()
 #reconFourierSlice()
 print("--- %s seconds ---" % (time.time() - start_time))
 
