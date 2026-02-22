@@ -27,10 +27,10 @@ nbpix = 336
 nbvox = 192 # options: 96, 192
 
 ## taille du voxel (carré) (cm)
-voxsize = 0.4 # option: 0.4, 0.2
+voxsize = 0.4# option: 0.4, 0.2
 
 ## fichiers d'entrée
 dataDir = "./data/"
-anglesFile = r"C:\Users\marc-\Desktop\Code physique numérique\TP2_Phyznum\Directive\PHY-3500-H26_TP2\PHY-3500-H26_TP2\angles.txt"
-sinogramFile = r"C:\Users\marc-\Desktop\Code physique numérique\TP2_Phyznum\Directive\PHY-3500-H26_TP2\PHY-3500-H26_TP2\sinogram-patient.txt"
+anglesFile = r"C:\Users\jerem\OneDrive\Documents\Programmation\TP2_Phyznum\TP2_Phyznum\Directive\PHY-3500-H26_TP2\PHY-3500-H26_TP2\angles.txt"
+sinogramFile = r"C:\Users\jerem\OneDrive\Documents\Programmation\TP2_Phyznum\TP2_Phyznum\Directive\PHY-3500-H26_TP2\PHY-3500-H26_TP2\sinogram-patient.txt"
 
