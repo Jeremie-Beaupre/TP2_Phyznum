@@ -9,6 +9,9 @@
 import numpy as np
 import time
 import math as mt
+import cmath as cmt
+import matplotlib.pyplot as plt
+import scipy.interpolate as interp
 
 # local files
 import geometry as geo
@@ -190,23 +193,110 @@ def backproject2():
 
 ## reconstruire une image TDM en mode retroprojection
 def reconFourierSlice():
-    
     [nbprj, angles, sinogram] = readInput()
 
     # initialiser une image reconstruite, complexe
     # pour qu'elle puisse contenir sa version FFT d'abord
     IMAGE = np.zeros((geo.nbvox, geo.nbvox), 'complex')
-    
     # conteneur pour la FFT du sinogramme
-    SINOGRAM = np.zeros(sinogram.shape, 'complex')
-
+    SINOGRAM = np.zeros((336, 336), 'complex')
+    print(SINOGRAM.shape)
     #image reconstruite
     image = np.zeros((geo.nbvox, geo.nbvox))
     #votre code ici
 
-    
-    util.saveImage(image, "fft")
+    N = geo.nbpix
+    sinoX = np.linspace(-N/2, N/2, N)
+    #sinoX = np.fft.fftshift(np.fft.fftfreq(N, d=geo.voxsize))
 
+    Hx = []
+    Hy = []
+    Hz = []
+    for a, th in enumerate(angles):
+        print(f"angle {a}/720")
+        sinoTF = np.fft.fft(sinogram[a,:])
+        sinoTF = np.fft.fftshift(sinoTF)
+        sinoX_peak = sinoX[np.argmax(np.abs(sinoTF))]
+        sinoX_center = sinoX - sinoX_peak
+
+        for b, w in enumerate(sinoX_center):
+
+            kx = (336/2-1) + w*np.cos(th)
+            ky = (336/2-1) + w*np.sin(th)
+
+            if 0 <= ky < SINOGRAM.shape[0] and 0 <= kx < SINOGRAM.shape[1]:
+                
+                #SINOGRAM[kx, ky] = sinoTF[b]
+
+                Hx.append(kx)
+                Hy.append(ky)
+                Hz.append(sinoTF[b])
+
+
+                #print(SINOGRAM[kx, ky])
+                #plt.plot(sinoX_center, sinoTF)
+                #plt.show()
+        
+            #print(f"w = {w}, k_x = {kx}, k_y = {ky}, angle = {th}")
+        #print(np.real(SINOGRAM)) 
+
+
+
+    # Interpolate values onto the grid
+    # 1️⃣ Create a regular grid for interpolation
+
+
+    Hx = np.array(Hx)
+    Hy = np.array(Hy)
+    Hz = np.array(Hz)
+
+    grid_size = 100  # adjust resolution
+    grid_x = np.linspace(Hx.min(), Hx.max(), grid_size)
+    grid_y = np.linspace(Hy.min(), Hy.max(), grid_size)
+    X_grid, Y_grid = np.meshgrid(grid_x, grid_y)
+
+    # 2️⃣ Interpolate scattered data onto the grid
+    Z_grid = interp.griddata(
+        points=(Hx, Hy),
+        values=np.real(Hz),  # in case your values are complex
+        xi=(X_grid, Y_grid),
+        method='linear'      # 'linear', 'nearest', 'cubic'
+    )
+
+    # 3️⃣ Plot interpolated heatmap
+    plt.figure(figsize=(8,6))
+    plt.imshow(
+        Z_grid,
+        extent=(Hx.min(), Hx.max(), Hy.min(), Hy.max()),
+        origin='lower',
+        cmap='viridis',
+        aspect='auto'
+    )
+    plt.colorbar(label='Value')
+    plt.xlabel('X')
+    plt.ylabel('Y')
+    plt.title('Interpolated Heatmap')
+    plt.show()
+
+    Z_reconstructed = np.fft.ifft2(Z_grid)
+    Z_reconstructed = np.real(Z_reconstructed)
+    plt.imshow(Z_reconstructed, cmap='gray')
+    plt.colorbar(label='Reconstructed value')
+    plt.title("Inverse FFT")
+    plt.show()
+
+    # plt.figure(figsize=(8,6))
+    # plt.contourf(X_grid, Y_grid, Z_grid, levels=50, cmap='viridis')
+    # plt.colorbar(label='Value')
+    # plt.xlabel('X')
+    # plt.ylabel('Y')
+    # plt.title('Interpolated Contour Plot')
+    # plt.show()
+
+    # #util.saveImage(image, "fft")
+
+
+    
 # def showFilteredSinogram():
 
 #     [nbprj, angles, sinogram] = readInput()
@@ -222,8 +312,8 @@ def reconFourierSlice():
 start_time = time.time()
 #laminogram()
 #showFilteredSinogram()
-backproject()
+#backproject()
 #backproject2()
-#reconFourierSlice()
+reconFourierSlice()
 print("--- %s seconds ---" % (time.time() - start_time))
 
