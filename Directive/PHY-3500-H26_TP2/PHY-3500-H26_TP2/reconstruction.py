@@ -322,44 +322,58 @@ def reconFourierSlice():
 def reconFourierSlice2():
     [nbprj, angles, sinogram] = readInput()
 
-    # conteneur pour la FFT du sinogramme
-    SINOGRAM = np.zeros((geo.nbpix, geo.nbpix), 'complex')
-    print(SINOGRAM.shape)
-    #image reconstruite
-    image = np.zeros((geo.nbvox, geo.nbvox))
-    #votre code ici
-
+    # On utilise nbpix (336) pour l'espace de Fourier car c'est la résolution du détecteur
     N = geo.nbpix
-    ##sinoX = np.arange(N) - N/2
-    ##print(sinoX)
-    sinoX = np.fft.fftfreq(N) * N
-    # 1. Préparer une grille de comptage pour normaliser
-    counts = np.zeros_like(SINOGRAM, dtype=float)
+    SINOGRAM_2D = np.zeros((N, N), dtype=complex)
+    counts = np.zeros((N, N))
 
+    # Fréquences de -N/2 à N/2
+    # On utilise fftshift pour que l'indice 0 soit bien la fréquence la plus basse
+    freqs = np.fft.fftshift(np.fft.fftfreq(N))
+    
+    center = N // 2
+
+    print("Calcul de la reconstruction de Fourier...")
     for a, th in enumerate(angles):
-        sinoTF = np.fft.fft(sinogram[a,:])
-        
-        for b, w in enumerate(sinoX):
-            # Utilisation de th en radians si ce n'est pas déjà le cas
-            kx = round((N)//2 + w * np.cos(th))
-            ky = round((N)//2 + w * np.sin(th))
+        # ÉTAPE 1: TF 1D de la projection
+        # IMPORTANT: ifftshift centre le sinogramme avant la FFT pour que 
+        # la phase soit correcte (le milieu du détecteur devient le centre de Fourier)
+        projection = sinogram[a, :]
+        sinoTF = np.fft.fftshift(np.fft.fft(np.fft.ifftshift(projection)))
 
-            if 0 <= ky < N and 0 <= kx < N:
-                SINOGRAM[ky, kx] += sinoTF[b]
-                counts[ky, kx] += 1
+        # ÉTAPE 2: Remplissage radial
+        for i, f in enumerate(freqs):
+            # f va de -0.5 à 0.5. On multiplie par N pour avoir des pixels.
+            # Le théorème de la tranche de Fourier :
+            kx = center + f * N * np.cos(th)
+            ky = center + f * N * np.sin(th)
 
+            # Plus proche voisin
+            ix, iy = int(round(kx)), int(round(ky))
 
-    # 2. Normalisation pour éviter l'accumulation au centre
-    SINOGRAM[counts > 0] /= counts[counts > 0]
+            if 0 <= ix < N and 0 <= iy < N:
+                SINOGRAM_2D[iy, ix] += sinoTF[i]
+                counts[iy, ix] += 1
 
-    # 3. Retour dans l'espace spatial
-    SINOGRAM = np.fft.ifftshift(SINOGRAM)
+    # ÉTAPE 3: Normalisation (pour éviter que le centre soit trop brillant)
+    SINOGRAM_2D[counts > 0] /= counts[counts > 0]
 
-    #image = np.fft.ifftshift(np.fft.ifft2(np.fft.ifftshift(image)))
-    #image = np.fft.ifftshift(np.fft.ifft2(SINOGRAM))
-    image = np.fft.ifft2(SINOGRAM)
-    util.saveImage(np.abs(image), "fft")
+    # ÉTAPE 4: Transformée inverse 2D
+    # On doit ifftshift avant ifft2 car SINOGRAM_2D a le DC au centre
+    image_reconstruite = np.fft.ifft2(np.fft.ifftshift(SINOGRAM_2D))
+    
+    # On prend la partie réelle et on remet les quadrants en place
+    image_finale = np.fft.fftshift(np.real(image_reconstruite))
 
+    # ÉTAPE 5: Ajustement à la taille nbvox (192)
+    # On découpe le centre de l'image (336x336) pour obtenir du 192x192
+    start = (N - geo.nbvox) // 2
+    image_crop = image_finale[start:start+geo.nbvox, start:start+geo.nbvox]
+
+    # Sauvegarde finale
+    # On utilise fliplr pour matcher l'orientation de tes autres fonctions
+    util.saveImage(np.fliplr(image_crop), "reconstruction_fourier_finale")
+    print("Terminé ! Vérifie le fichier reconstruction_fourier_finale.png")
 # def showFilteredSinogram():
 
 #     [nbprj, angles, sinogram] = readInput()
