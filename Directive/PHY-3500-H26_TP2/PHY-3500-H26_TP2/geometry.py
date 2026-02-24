@@ -24,10 +24,10 @@ nbpix = 336
 ### paramètres de reconstruction ###
 
 ## taille de la grille d'image (carrée)
-nbvox = 192 # options: 96, 192
+nbvox = 384 # options: 96, 192
 
 ## taille du voxel (carré) (cm)
-voxsize = 0.4# option: 0.4, 0.2
+voxsize = 0.2# option: 0.4, 0.2
 
 ## fichiers d'entrée
 dataDir = "./data/"

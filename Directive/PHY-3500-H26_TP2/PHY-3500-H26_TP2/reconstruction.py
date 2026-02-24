@@ -322,58 +322,105 @@ def reconFourierSlice():
 def reconFourierSlice2():
     [nbprj, angles, sinogram] = readInput()
 
-    # On utilise nbpix (336) pour l'espace de Fourier car c'est la résolution du détecteur
-    N = geo.nbpix
-    SINOGRAM_2D = np.zeros((N, N), dtype=complex)
-    counts = np.zeros((N, N))
-
-    # Fréquences de -N/2 à N/2
-    # On utilise fftshift pour que l'indice 0 soit bien la fréquence la plus basse
-    freqs = np.fft.fftshift(np.fft.fftfreq(N))
+    # --- CHANGEMENT ICI ---
+    # On utilise maintenant nbvox (ex: 384) pour définir la finesse de notre grille
+    N_grid = geo.nbvox 
+    N_det = geo.nbpix # 336 (la taille réelle de tes données)
     
-    center = N // 2
+    # Notre matrice de Fourier est maintenant à la taille demandée par le devoir
+    SINOGRAM_2D = np.zeros((N_grid, N_grid), dtype=complex)
+    counts = np.zeros((N_grid, N_grid))
 
-    print("Calcul de la reconstruction de Fourier...")
+    # Les fréquences du détecteur (de -0.5 à 0.5)
+    freqs_det = np.fft.fftshift(np.fft.fftfreq(N_det))
+    
+    center = N_grid // 2
+
     for a, th in enumerate(angles):
-        # ÉTAPE 1: TF 1D de la projection
-        # IMPORTANT: ifftshift centre le sinogramme avant la FFT pour que 
-        # la phase soit correcte (le milieu du détecteur devient le centre de Fourier)
-        projection = sinogram[a, :]
-        sinoTF = np.fft.fftshift(np.fft.fft(np.fft.ifftshift(projection)))
+        # TF 1D de la projection (toujours basée sur la taille du détecteur 336)
+        sinoTF = np.fft.fftshift(np.fft.fft(np.fft.ifftshift(sinogram[a, :])))
 
-        # ÉTAPE 2: Remplissage radial
-        for i, f in enumerate(freqs):
-            # f va de -0.5 à 0.5. On multiplie par N pour avoir des pixels.
-            # Le théorème de la tranche de Fourier :
-            kx = center + f * N * np.cos(th)
-            ky = center + f * N * np.sin(th)
+        for i, f in enumerate(freqs_det):
+            # On place les données du détecteur sur la grille de nbvox
+            # Le facteur N_grid permet d'étaler les points sur la nouvelle taille
+            kx = center + f * N_grid
+            ky = center + f * N_grid * np.sin(th) # Correction : cos/sin ici
+            # (Note: utilise bien cos(th) pour kx et sin(th) pour ky comme avant)
+            
+            kx = center + f * N_grid * np.cos(th)
+            ky = center + f * N_grid * np.sin(th)
 
-            # Plus proche voisin
             ix, iy = int(round(kx)), int(round(ky))
 
-            if 0 <= ix < N and 0 <= iy < N:
+            if 0 <= ix < N_grid and 0 <= iy < N_grid:
                 SINOGRAM_2D[iy, ix] += sinoTF[i]
                 counts[iy, ix] += 1
 
-    # ÉTAPE 3: Normalisation (pour éviter que le centre soit trop brillant)
+    # Normalisation et IFFT
     SINOGRAM_2D[counts > 0] /= counts[counts > 0]
-
-    # ÉTAPE 4: Transformée inverse 2D
-    # On doit ifftshift avant ifft2 car SINOGRAM_2D a le DC au centre
     image_reconstruite = np.fft.ifft2(np.fft.ifftshift(SINOGRAM_2D))
-    
-    # On prend la partie réelle et on remet les quadrants en place
     image_finale = np.fft.fftshift(np.real(image_reconstruite))
 
-    # ÉTAPE 5: Ajustement à la taille nbvox (192)
-    # On découpe le centre de l'image (336x336) pour obtenir du 192x192
-    start = (N - geo.nbvox) // 2
-    image_crop = image_finale[start:start+geo.nbvox, start:start+geo.nbvox]
+    # Plus besoin de "crop" ici, car la grille fait déjà la taille nbvox !
+    util.saveImage(np.fliplr(image_finale), "Fourier Slice")
 
-    # Sauvegarde finale
-    # On utilise fliplr pour matcher l'orientation de tes autres fonctions
-    util.saveImage(np.fliplr(image_crop), "reconstruction_fourier_finale")
-    print("Terminé ! Vérifie le fichier reconstruction_fourier_finale.png")
+def reconFourierSliceBONUS():
+    [nbprj, angles, sinogram] = readInput()
+
+    N_grid = geo.nbvox  # Utilise 384 pour la haute résolution
+    N_det = geo.nbpix   # 336
+    
+    SINOGRAM_2D = np.zeros((N_grid, N_grid), dtype=complex)
+    counts = np.zeros((N_grid, N_grid))
+
+    freqs_det = np.fft.fftshift(np.fft.fftfreq(N_det))
+    center = N_grid // 2
+
+    print("Calcul de la reconstruction avec interpolation bi-linéaire...")
+    for a, th in enumerate(angles):
+        # TF 1D de la projection (centrée)
+        sinoTF = np.fft.fftshift(np.fft.fft(np.fft.ifftshift(sinogram[a, :])))
+
+        cos_th = np.cos(th)
+        sin_th = np.sin(th)
+
+        for i, f in enumerate(freqs_det):
+            # Coordonnées exactes (flottantes)
+            kx = center + f * N_grid * cos_th
+            ky = center + f * N_grid * sin_th
+
+            # On trouve les 4 voisins
+            x1 = int(np.floor(kx))
+            y1 = int(np.floor(ky))
+            x2 = x1 + 1
+            y2 = y1 + 1
+
+            # Calcul des distances fractionnaires
+            dx = kx - x1
+            dy = ky - y1
+
+            # On distribue la valeur sur les 4 voisins (si ils sont dans la grille)
+            for ix, iy, weight in [
+                (x1, y1, (1 - dx) * (1 - dy)),
+                (x2, y1, dx * (1 - dy)),
+                (x1, y2, (1 - dx) * dy),
+                (x2, y2, dx * dy)
+            ]:
+                if 0 <= ix < N_grid and 0 <= iy < N_grid:
+                    SINOGRAM_2D[iy, ix] += sinoTF[i] * weight
+                    counts[iy, ix] += weight
+
+    # Normalisation pour compenser la densité du centre
+    mask = counts > 0
+    SINOGRAM_2D[mask] /= counts[mask]
+
+    # Retour dans l'espace spatial
+    image_reconstruite = np.fft.ifft2(np.fft.ifftshift(SINOGRAM_2D))
+    image_finale = np.fft.fftshift(np.real(image_reconstruite))
+
+    # Sauvegarde
+    util.saveImage(np.fliplr(image_finale), "fourier_BONUS_bilineaire")
+    print("Terminé ! L'image devrait être nettement plus précise.")
 # def showFilteredSinogram():
 
 #     [nbprj, angles, sinogram] = readInput()
@@ -393,6 +440,7 @@ start_time = time.time()
 #backproject2()
 
 reconFourierSlice2()
+reconFourierSliceBONUS()
 
 print("--- %s seconds ---" % (time.time() - start_time))
 
