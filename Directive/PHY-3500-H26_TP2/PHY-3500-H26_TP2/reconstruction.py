@@ -82,14 +82,14 @@ def laminogram():
     # Flip image (if required by your convention)
     image = np.fliplr(image)
     CTfilter.filterSinogram(image)
-    image = np.fft.fft(image)
-    #image = np.fft.ifft(image)
+    image = np.fft.fft2(image)
+    image = np.fft.fftshift(image)
 
 
     # Apply filter if needed
     #
 
-    util.saveImage(np.real(image), "laminogram_fantome_192_04_image_droite_test_question3")
+    util.saveImage(np.abs(image), "laminogram_fantome_192_04_image_droite_test_question3")
 
 
 
@@ -314,15 +314,13 @@ def reconFourierSlice():
     plt.title("Inverse FFT")
     plt.show() 
 
+    util.saveImage(abs(Z_grid), "fft")
 
 
-
-    util.saveImage(Z_grid, "fft")
 
 ## reconstruire une image TDM en mode retroprojection
 def reconFourierSlice2():
     [nbprj, angles, sinogram] = readInput()
-
 
     # conteneur pour la FFT du sinogramme
     SINOGRAM = np.zeros((geo.nbpix, geo.nbpix), 'complex')
@@ -332,27 +330,34 @@ def reconFourierSlice2():
     #votre code ici
 
     N = geo.nbpix
-    sinoX = np.arange(N) - N/2
+    ##sinoX = np.arange(N) - N/2
+    ##print(sinoX)
+    sinoX = np.fft.fftfreq(N) * N
     # 1. Préparer une grille de comptage pour normaliser
     counts = np.zeros_like(SINOGRAM, dtype=float)
 
     for a, th in enumerate(angles):
-        sinoTF = np.fft.fftshift(np.fft.fft(sinogram[a,:]))
+        sinoTF = np.fft.fft(sinogram[a,:])
         
         for b, w in enumerate(sinoX):
             # Utilisation de th en radians si ce n'est pas déjà le cas
-            kx = int(N//2 + w * np.cos(-th))
-            ky = int(N//2 + w * np.sin(-th))
+            kx = round((N)//2 + w * np.cos(th))
+            ky = round((N)//2 + w * np.sin(th))
 
             if 0 <= ky < N and 0 <= kx < N:
                 SINOGRAM[ky, kx] += sinoTF[b]
                 counts[ky, kx] += 1
 
+
     # 2. Normalisation pour éviter l'accumulation au centre
     SINOGRAM[counts > 0] /= counts[counts > 0]
 
     # 3. Retour dans l'espace spatial
-    image = np.fft.ifft2(np.fft.ifftshift(SINOGRAM))
+    SINOGRAM = np.fft.ifftshift(SINOGRAM)
+
+    #image = np.fft.ifftshift(np.fft.ifft2(np.fft.ifftshift(image)))
+    #image = np.fft.ifftshift(np.fft.ifft2(SINOGRAM))
+    image = np.fft.ifft2(SINOGRAM)
     util.saveImage(np.abs(image), "fft")
 
 # def showFilteredSinogram():
@@ -371,7 +376,9 @@ start_time = time.time()
 #laminogram()
 #showFilteredSinogram()
 #backproject()
-backproject2()
+#backproject2()
+
+reconFourierSlice2()
 
 print("--- %s seconds ---" % (time.time() - start_time))
 
