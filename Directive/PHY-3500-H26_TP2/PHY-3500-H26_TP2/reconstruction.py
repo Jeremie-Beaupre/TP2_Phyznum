@@ -58,35 +58,28 @@ def laminogram():
     L = geo.nbpix * geo.voxsize          # largeur physique du détecteur
     tmin = -L/2                           # début du détecteur
     dt = L / geo.nbpix                    # taille d’un pixel détecteur
-    coords = (np.arange(geo.nbvox) - geo.nbvox/2 + 0.5) * geo.voxsize
-    X, Y = np.meshgrid(coords, coords)   # shape: (nbvox, nbvox)
 
-    for a, th in enumerate(angles):
+    for j in range(geo.nbvox):            # boucle colonnes
+        print(f"working on image column: {j+1}/{geo.nbvox}")
+        x =  (j - geo.nbvox/2 + 0.5) * geo.voxsize   # coordonnée x du voxel
 
-        print(f"Processing angle {a+1}/{len(angles)}")
+        for i in range(geo.nbvox):        # boucle lignes
+            y = (i - geo.nbvox/2 + 0.5) * geo.voxsize   # coordonnée y du voxel
+            total = 0.0                   # accumulation des contributions
 
-        # IMPORTANT: ensure angles are in radians
-        # th = np.deg2rad(th)  # Uncomment if needed
+            for a, th in enumerate(angles):           # boucle angles
+                s = x*np.cos(th) + y*np.sin(th)       # projection du voxel sur le détecteur
+                k = int(round((s - tmin) / dt))       # conversion en index détecteur
 
-        # Project all voxels at once
-        S = X * np.cos(th) + Y * np.sin(th)
+                if 0 <= k < geo.nbpix:                # si dans les bornes
+                    total += sinogram[a, k]           # ajouter la valeur du sinogramme
 
-        # Convert to detector index
-        K = np.round((S - tmin) / dt).astype(int)
+            image[i, j] = total           # assigner la valeur finale du voxel
+            
 
-        # Mask valid indices
-        valid = (K >= 0) & (K < geo.nbpix)
-
-        # Add sinogram contribution
-        image[valid] += sinogram[a, K[valid]]
-
-    # Flip image (if required by your convention)
-    image = np.fliplr(image)
-    CTfilter.filterSinogram(image)
-    # Apply filter if needed
-    #
-
-    util.saveImage(np.abs(image), "laminogram_fantome_192_04_image_droite_test_question3")
+    image = np.fliplr(image) # mettre l'image à l'endroit
+    #CTfilter.filterSinogram(image)
+    util.saveImage(image, "Reconstruction simple laminogram")
 
 
 
@@ -140,7 +133,7 @@ def backproject():
     # remettre l'image à l'endroit
     image = np.fliplr(image)
 
-    util.saveImage(image, "fbp_test1")
+    util.saveImage(image, " Retroprojection filtrée sans interpolation")
 
 ## reconstruire une image TDM en mode retroprojection filtrée + interpolation
 def backproject2():
@@ -195,7 +188,7 @@ def backproject2():
 
         image += contrib
     image = np.fliplr(image)
-    util.saveImage(image, "fbp_test1")
+    util.saveImage(image, "Retroprojection filtrée avec interpolation linéaire")
 
 
 
@@ -245,7 +238,7 @@ def reconFourierSlice():
     image = np.fliplr(np.abs(image))  # abs avant tout
     # factor = geo.nbvox / image.shape[0]
     # image_resized = sc.ndimage.zoom(image, factor)
-    util.saveImage(image, "fft_reconstructed")
+    util.saveImage(image, "Reconstruction par la méthode de la tranche de Fourier")
 
 
 
