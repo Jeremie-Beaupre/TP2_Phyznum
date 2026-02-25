@@ -24,13 +24,13 @@ nbpix = 336
 ### paramètres de reconstruction ###
 
 ## taille de la grille d'image (carrée)
-nbvox = 96 # options: 96, 192
+nbvox = 192 # options: 96, 192
 
 ## taille du voxel (carré) (cm)
 voxsize = 0.2# option: 0.4, 0.2
 
 ## fichiers d'entrée
 dataDir = "./data/"
-anglesFile = r"C:\Users\jerem\OneDrive\Documents\Programmation\TP2_Phyznum\TP2_Phyznum\Directive\PHY-3500-H26_TP2\PHY-3500-H26_TP2\angles.txt"
-sinogramFile = r"C:\Users\jerem\OneDrive\Documents\Programmation\TP2_Phyznum\TP2_Phyznum\Directive\PHY-3500-H26_TP2\PHY-3500-H26_TP2\sinogram-patient.txt"
+anglesFile = r"C:\École\Université\Session 8 (H26)\PhysNum\TP_2\TP2_Phyznum\Directive\PHY-3500-H26_TP2\PHY-3500-H26_TP2\angles.txt"
+sinogramFile = r"C:\École\Université\Session 8 (H26)\PhysNum\TP_2\TP2_Phyznum\Directive\PHY-3500-H26_TP2\PHY-3500-H26_TP2\sinogram-password.txt"
 
