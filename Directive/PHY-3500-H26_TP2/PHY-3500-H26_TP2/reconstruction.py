@@ -268,7 +268,7 @@ start_time = time.time()
 
 #backproject2()
 
-#reconFourierSlice()
+reconFourierSlice()
 
 print("--- %s seconds ---" % (time.time() - start_time))
 
